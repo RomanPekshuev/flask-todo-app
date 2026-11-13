@@ -4,6 +4,7 @@ import flask
 from flask import request, redirect, flash, render_template, url_for
 from application.extensions import db
 from application.models import Todo
+from sqlalchemy import text
 
 todo_bp = flask.Blueprint(
     'todo',
@@ -14,7 +15,7 @@ todo_bp = flask.Blueprint(
 
 @todo_bp.route('/', methods=['GET', 'POST'])
 def index():
-    todo = Todo.query.order_by('-id')
+    todo = Todo.query.order_by(text('-id')).all()
     _form = request.form
 
     if request.method == 'POST':
@@ -25,7 +26,7 @@ def index():
             flash("add task successfully!")
             return redirect(url_for('todo.index'))
         except Exception as e:
-            print e
+            print (e)
             flash("fail to add task!")
 
     return render_template('index.html', todo=todo)
