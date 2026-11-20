@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.14.2"
   APP_PORT: "7345"
   FLASK_APP: "manage.py"
   PYTHONUNBUFFERED: "1"
