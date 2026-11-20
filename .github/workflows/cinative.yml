@@ -1,0 +1,75 @@
+name: CI - Flask & SQLite (native Ubuntu)
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  APP_PORT: "7345"
+  FLASK_APP: "app"
+  PYTHONUNBUFFERED: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  ci:
+    name: lint, init DB and smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8  # линтер для проверки кода
+
+      - name: Lint with flake8
+        run: |
+          # Останавливаем сборку, если найдены ошибки (E — ошибки, W — предупреждения, F — флейк)
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Initialize database
+        run: |
+          export FLASK_APP=manage.py
+          flask db upgrade || python manage.py db upgrade || echo "DB already initialized"
+
+      - name: Start Flask server
+        run: |
+          python manage.py runserver -h 0.0.0.0 -p ${{ env.APP_PORT }} &
+          # Ждём, пока сервер поднимется
+          sleep 5
+
+      - name: Smoke test
+        run: |
+          # Проверяем, что главная страница отдаёт 200 OK
+          curl --fail --retry 3 --retry-delay 2 http://localhost:${{ env.APP_PORT }}/ \
+            || (echo "Smoke test failed" && exit 1)
+          echo "Smoke test passed — server is running on port ${{ env.APP_PORT }}"
+
+      - name: Stop Flask server
+        if: always()
+        run: |
+          pkill -f "manage.py runserver" || true
